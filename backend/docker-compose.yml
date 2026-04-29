@@ -1,0 +1,32 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: carpool
+      POSTGRES_PASSWORD: carpool
+      POSTGRES_DB: carpool
+    ports:
+      - "5433:5432"
+    volumes:
+      - carpool_db:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d
+
+  backend:
+    build:
+      context: .
+    depends_on:
+      - db
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgresql://carpool:carpool@db:5432/carpool?schema=public
+    ports:
+      - "3000:3000"
+    command: >
+      sh -c "node -e 'console.log(\"starting\")' &&
+             npx prisma db push --schema src/prisma/schema.prisma &&
+             node dist/main.js"
+
+volumes:
+  carpool_db:
+

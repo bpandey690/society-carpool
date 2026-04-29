@@ -1,0 +1,68 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RideStatus {
+  OPEN
+  REQUESTED
+  ACCEPTED
+  REJECTED
+  CANCELLED
+}
+
+model Ride {
+  id                String     @id @default(uuid())
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  driverName        String
+  seatsAvailable    Int        @default(1)
+  chargeCents       Int
+
+  startTime         DateTime
+  endTime           DateTime
+
+  startPlaceName    String
+  endPlaceName      String
+
+  // PostGIS geometry (SRID 4326) stored as:
+  // - startPoint/endPoint: POINT
+  // - routeLine: LINESTRING
+  startPoint        Unsupported("geometry(Point,4326)")
+  endPoint          Unsupported("geometry(Point,4326)")
+  routeLine         Unsupported("geometry(LineString,4326)")
+
+  status            RideStatus @default(OPEN)
+
+  requests          RideRequest[]
+
+  @@index([startTime])
+  @@index([endTime])
+}
+
+model RideRequest {
+  id             String   @id @default(uuid())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  rideId         String
+  ride           Ride     @relation(fields: [rideId], references: [id], onDelete: Cascade)
+
+  riderName      String
+  riderStartName String
+  riderEndName   String
+  riderStartTime DateTime
+
+  riderStart     Unsupported("geometry(Point,4326)")
+  riderEnd       Unsupported("geometry(Point,4326)")
+
+  status         RideStatus @default(REQUESTED)
+
+  @@index([rideId])
+}
+
