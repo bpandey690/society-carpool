@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Body, Param, Request, UseGuards, Query } from '@nestjs/common';
-import { PrismaClient, RideStatus } from '@prisma/client';
+import { PrismaClient, RideStatus, Prisma } from '@prisma/client';
 import { FirebaseAuthGuard } from './modules/auth/firebase-auth.guard';
 import { MatchmakingService } from './modules/matchmaking/matchmaking.service';
 import { RequestRideDto } from './modules/matchmaking/dto/request-ride.dto';
@@ -124,56 +124,62 @@ export class AliasController {
 
   @Post('rides/offer')
   async offerRide(@Body() body: any, @Request() req: any) {
-    const { startName, endName, startCoords, endCoords, seats, price, date, time } = body;
-    const startTime = new Date(`${date}T${time}:00`);
-    const endTime = new Date(startTime.getTime() + 60 * 60 * 1000); // add 1 hr approx
+    try {
+      const { startName, endName, startCoords, endCoords, seats, price, date, time } = body;
+      const startTime = new Date(`${date}T${time}:00+05:30`);
+      const endTime = new Date(startTime.getTime() + 60 * 60 * 1000); // add 1 hr approx
 
-    const overlappingDriver = await prisma.ride.findFirst({
-       where: {
-         driverId: req.user.id,
-         status: { in: [RideStatus.OPEN, RideStatus.REQUESTED, RideStatus.ACCEPTED] },
-         startTime: { lt: endTime },
-         endTime: { gt: startTime }
-       }
-    });
-    if (overlappingDriver) throw new Error('You already have a published ride during this time window.');
+      console.log(`[OfferRide] Local Time: ${date} ${time} | Calculated UTC: ${startTime.toISOString()}`);
 
-    const overlappingRider = await prisma.rideRequest.findFirst({
-       where: {
-         riderId: req.user.id,
-         status: { in: [RideStatus.REQUESTED, RideStatus.ACCEPTED] },
-         ride: {
+      const overlappingDriver = await prisma.ride.findFirst({
+         where: {
+           driverId: req.user.id,
+           status: { in: [RideStatus.OPEN, RideStatus.REQUESTED, RideStatus.ACCEPTED] },
            startTime: { lt: endTime },
            endTime: { gt: startTime }
          }
-       }
-    });
-    if (overlappingRider) throw new Error('You already have a requested ride during this time window.');
+      });
+      if (overlappingDriver) throw new Error('You already have a published ride during this time window.');
 
-    const ride = await prisma.ride.create({
-      data: {
-        driverId: req.user.id,
-        seatsAvailable: seats || 3,
-        chargeCents: (price || 10) * 100,
-        startTime,
-        endTime,
-        startPlaceName: startName,
-        endPlaceName: endName,
-        status: RideStatus.OPEN,
+      const overlappingRider = await prisma.rideRequest.findFirst({
+         where: {
+           riderId: req.user.id,
+           status: { in: [RideStatus.REQUESTED, RideStatus.ACCEPTED] },
+           ride: {
+             startTime: { lt: endTime },
+             endTime: { gt: startTime }
+           }
+         }
+      });
+      if (overlappingRider) throw new Error('You already have a requested ride during this time window.');
+
+      const ride = await prisma.ride.create({
+        data: {
+          driverId: req.user.id,
+          seatsAvailable: seats || 3,
+          chargeCents: (price || 10) * 100,
+          startTime: startTime.toISOString(),
+          endTime: endTime.toISOString(),
+          startPlaceName: startName,
+          endPlaceName: endName,
+          status: RideStatus.OPEN,
+        }
+      });
+
+      if (startCoords && startCoords.length === 2 && endCoords && endCoords.length === 2) {
+        await prisma.$executeRaw(Prisma.sql`
+          UPDATE "Ride"
+          SET "startPoint" = ST_SetSRID(ST_MakePoint(${startCoords[0]}, ${startCoords[1]}), 4326),
+              "endPoint" = ST_SetSRID(ST_MakePoint(${endCoords[0]}, ${endCoords[1]}), 4326)
+          WHERE id = ${ride.id}
+        `);
       }
-    });
 
-    if (startCoords && startCoords.length === 2 && endCoords && endCoords.length === 2) {
-      const { Prisma } = require('@prisma/client');
-      await prisma.$executeRaw(Prisma.sql`
-        UPDATE "Ride"
-        SET "startPoint" = ST_SetSRID(ST_MakePoint(${startCoords[0]}, ${startCoords[1]}), 4326),
-            "endPoint" = ST_SetSRID(ST_MakePoint(${endCoords[0]}, ${endCoords[1]}), 4326)
-        WHERE id = ${ride.id}
-      `);
+      return ride;
+    } catch (err: any) {
+      console.error('[OfferRide Error]', err);
+      throw err;
     }
-
-    return ride;
   }
 
   @Post('rides/:id/book')
