@@ -17,18 +17,29 @@ services:
       context: .
     depends_on:
       - db
+      - meilisearch
     env_file:
       - .env
     environment:
       PORT: 3000
       DATABASE_URL: postgresql://carpool:carpool@db:5432/carpool?schema=public
+      MEILI_HOST: http://meilisearch:7700
+      MEILI_MASTER_KEY: masterKey
     ports:
       - "3000:3000"
     command: >
-      sh -c "node -e 'console.log(\"starting\")' &&
-             npx prisma db push --schema src/prisma/schema.prisma &&
+      sh -c "npx prisma db push --schema src/prisma/schema.prisma &&
              node dist/main.js"
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.7
+    environment:
+      - MEILI_MASTER_KEY=masterKey
+    ports:
+      - "7700:7700"
+    volumes:
+      - meili_data:/meili_data
 
 volumes:
   carpool_db:
-
+  meili_data:

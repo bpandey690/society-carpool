@@ -5,6 +5,7 @@ import { MatchmakingModule } from './modules/matchmaking/matchmaking.module';
 import { PrismaModule } from './modules/prisma/prisma.module';
 import { AuthController } from './modules/auth/auth.controller';
 import { AliasController } from './alias.controller';
+import { MarketplaceModule } from './modules/marketplace/marketplace.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { AliasController } from './alias.controller';
     PrismaModule,
     RidesModule,
     MatchmakingModule,
+    MarketplaceModule,
   ],
   controllers: [AuthController, AliasController],
 })

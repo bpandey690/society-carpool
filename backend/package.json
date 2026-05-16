@@ -26,6 +26,7 @@
     "class-validator": "^0.14.1",
     "firebase-admin": "^13.8.0",
     "jsonwebtoken": "^9.0.3",
+    "meilisearch": "^0.32.0",
     "passport": "^0.7.0",
     "passport-custom": "^1.1.1",
     "reflect-metadata": "^0.2.2",
